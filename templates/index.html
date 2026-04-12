@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube MP3 Downloader</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #0f0f0f;
+            color: #e1e1e1;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 560px;
+            padding: 20px;
+        }
+
+        h1 {
+            font-size: 28px;
+            font-weight: 700;
+            text-align: center;
+            margin-bottom: 8px;
+        }
+
+        h1 span { color: #ff4444; }
+
+        .subtitle {
+            text-align: center;
+            color: #888;
+            font-size: 14px;
+            margin-bottom: 32px;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            padding: 14px 16px;
+            border: 2px solid #333;
+            border-radius: 12px;
+            background: #1a1a1a;
+            color: #fff;
+            font-size: 15px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        input[type="text"]:focus { border-color: #ff4444; }
+        input[type="text"]::placeholder { color: #555; }
+
+        button {
+            padding: 14px 24px;
+            border: none;
+            border-radius: 12px;
+            background: #ff4444;
+            color: #fff;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+            white-space: nowrap;
+        }
+
+        button:hover { background: #e03030; }
+        button:disabled { background: #555; cursor: not-allowed; }
+
+        .status {
+            background: #1a1a1a;
+            border-radius: 12px;
+            padding: 20px;
+            display: none;
+        }
+
+        .status.active { display: block; }
+
+        .status-title {
+            font-weight: 600;
+            margin-bottom: 12px;
+            font-size: 14px;
+            word-break: break-word;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: #333;
+            border-radius: 3px;
+            overflow: hidden;
+            margin-bottom: 8px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: #ff4444;
+            border-radius: 3px;
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+
+        .status-text {
+            font-size: 13px;
+            color: #888;
+        }
+
+        .download-btn {
+            display: inline-block;
+            margin-top: 12px;
+            padding: 10px 20px;
+            background: #22c55e;
+            border-radius: 8px;
+            color: #fff;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .download-btn:hover { background: #16a34a; }
+
+        .error { color: #ff4444; }
+
+        .history {
+            margin-top: 24px;
+        }
+
+        .history h3 {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 8px;
+        }
+
+        .history-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 14px;
+            background: #1a1a1a;
+            border-radius: 8px;
+            margin-bottom: 6px;
+            font-size: 13px;
+        }
+
+        .history-item a {
+            color: #22c55e;
+            text-decoration: none;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1><span>YouTube</span> MP3</h1>
+        <p class="subtitle">320kbps 고음질 MP3 다운로드</p>
+
+        <div class="input-group">
+            <input type="text" id="urlInput" placeholder="유튜브 링크를 붙여넣으세요" autofocus>
+            <button id="downloadBtn" onclick="startDownload()">변환</button>
+        </div>
+
+        <div class="status" id="statusBox">
+            <div class="status-title" id="statusTitle"></div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <div class="status-text" id="statusText"></div>
+            <div id="downloadLink"></div>
+        </div>
+
+        <div class="history" id="historySection" style="display:none">
+            <h3>최근 다운로드</h3>
+            <div id="historyList"></div>
+        </div>
+    </div>
+
+    <script>
+        const urlInput = document.getElementById('urlInput');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const statusBox = document.getElementById('statusBox');
+        const statusTitle = document.getElementById('statusTitle');
+        const progressFill = document.getElementById('progressFill');
+        const statusText = document.getElementById('statusText');
+        const downloadLink = document.getElementById('downloadLink');
+        const historySection = document.getElementById('historySection');
+        const historyList = document.getElementById('historyList');
+
+        let history = [];
+
+        urlInput.addEventListener('keydown', e => {
+            if (e.key === 'Enter') startDownload();
+        });
+
+        async function startDownload() {
+            const url = urlInput.value.trim();
+            if (!url) return;
+
+            downloadBtn.disabled = true;
+            downloadBtn.textContent = '처리 중...';
+            statusBox.classList.add('active');
+            statusTitle.textContent = '';
+            statusText.textContent = '다운로드 준비 중...';
+            progressFill.style.width = '0%';
+            downloadLink.innerHTML = '';
+
+            try {
+                const res = await fetch('/api/download', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url })
+                });
+
+                const data = await res.json();
+
+                if (data.error) {
+                    statusText.innerHTML = `<span class="error">${data.error}</span>`;
+                    resetBtn();
+                    return;
+                }
+
+                pollStatus(data.task_id);
+            } catch (err) {
+                statusText.innerHTML = `<span class="error">서버 연결 실패</span>`;
+                resetBtn();
+            }
+        }
+
+        function pollStatus(taskId) {
+            const interval = setInterval(async () => {
+                try {
+                    const res = await fetch(`/api/status/${taskId}`);
+                    const data = await res.json();
+
+                    if (data.title) {
+                        statusTitle.textContent = data.title;
+                    }
+
+                    if (data.status === 'downloading') {
+                        progressFill.style.width = data.progress + '%';
+                        statusText.textContent = `다운로드 중... ${data.progress}%`;
+                    } else if (data.status === 'converting') {
+                        progressFill.style.width = '100%';
+                        statusText.textContent = 'MP3 변환 중...';
+                    } else if (data.status === 'done') {
+                        clearInterval(interval);
+                        progressFill.style.width = '100%';
+                        statusText.textContent = '완료!';
+                        downloadLink.innerHTML = `<a class="download-btn" href="/api/file/${taskId}" download>MP3 다운로드</a>`;
+                        addHistory(data.title, taskId);
+                        resetBtn();
+                    } else if (data.status === 'error') {
+                        clearInterval(interval);
+                        statusText.innerHTML = `<span class="error">${data.error || '오류 발생'}</span>`;
+                        progressFill.style.width = '0%';
+                        resetBtn();
+                    }
+                } catch {
+                    clearInterval(interval);
+                    statusText.innerHTML = `<span class="error">상태 확인 실패</span>`;
+                    resetBtn();
+                }
+            }, 1000);
+        }
+
+        function resetBtn() {
+            downloadBtn.disabled = false;
+            downloadBtn.textContent = '변환';
+        }
+
+        function addHistory(title, taskId) {
+            history.unshift({ title, taskId });
+            if (history.length > 5) history.pop();
+            renderHistory();
+        }
+
+        function renderHistory() {
+            if (history.length === 0) {
+                historySection.style.display = 'none';
+                return;
+            }
+            historySection.style.display = 'block';
+            historyList.innerHTML = history.map(h =>
+                `<div class="history-item">
+                    <span>${h.title.length > 40 ? h.title.slice(0, 40) + '...' : h.title}</span>
+                    <a href="/api/file/${h.taskId}" download>다운로드</a>
+                </div>`
+            ).join('');
+        }
+    </script>
+</body>
+</html>
