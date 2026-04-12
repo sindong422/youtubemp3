@@ -42,7 +42,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 if ! grep -q "alias ymp3=" "$SHELL_RC" 2>/dev/null; then
     echo "" >> "$SHELL_RC"
     echo "# YouTube MP3" >> "$SHELL_RC"
-    echo "alias ymp3='cd $SCRIPT_DIR && python3 app.py &'" >> "$SHELL_RC"
+    echo "alias ymp3='cd $SCRIPT_DIR && python3 app.py > /dev/null 2>&1 &'" >> "$SHELL_RC"
     echo "alias ymp3c='pkill -f \"python3 app.py\"'" >> "$SHELL_RC"
     echo "alias 등록 완료 (ymp3 / ymp3c)"
 else
