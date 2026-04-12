@@ -54,7 +54,7 @@ def download_worker(task_id, url):
         audio_filename = f"{task_id}_audio"
         audio_path = stream.download(output_path=DOWNLOAD_DIR, filename=audio_filename)
 
-        # ffmpeg로 320kbps MP3 변환
+        # ffmpeg로 MP3 변환 (원본 음질 유지)
         tasks[task_id]["status"] = "converting"
         tasks[task_id]["progress"] = 100
 
@@ -62,7 +62,7 @@ def download_worker(task_id, url):
         author = yt.author or ""
         result = subprocess.run(
             [
-                "ffmpeg", "-i", audio_path, "-vn", "-ab", "320k", "-ar", "44100",
+                "ffmpeg", "-i", audio_path, "-vn", "-q:a", "0",
                 "-metadata", f"title={title}",
                 "-metadata", f"artist={author}",
                 "-y", mp3_path,
