@@ -2,3 +2,5 @@ downloads/
 __pycache__/
 *.pyc
 .DS_Store
+server.log
+.claude/

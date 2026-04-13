@@ -1,18 +1,31 @@
 import os
 import re
+import sys
 import uuid
 import glob
+import logging
 import subprocess
 import threading
 import time
+import traceback
 from flask import Flask, render_template, request, jsonify, send_file
 
 from pytubefix import YouTube
 
 app = Flask(__name__)
 
-DOWNLOAD_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "downloads")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DOWNLOAD_DIR = os.path.join(BASE_DIR, "downloads")
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
+
+FFMPEG_TIMEOUT = 300  # 초
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    stream=sys.stdout,
+)
+logger = logging.getLogger("ymp3")
 
 # 진행 상태 저장
 tasks = {}
@@ -39,20 +52,41 @@ def on_progress(stream, chunk, bytes_remaining):
         tasks[task_id]["progress"] = round(downloaded / total * 100, 1)
 
 
+def _run_ffmpeg(audio_path, mp3_path, title, author):
+    """subprocess.run + timeout 으로 hang 방지. communicate() 기반이라 파이프 데드락 없음."""
+    return subprocess.run(
+        [
+            "ffmpeg", "-nostdin", "-i", audio_path, "-vn", "-q:a", "0",
+            "-metadata", f"title={title}",
+            "-metadata", f"artist={author}",
+            "-y", mp3_path,
+        ],
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        text=True,
+        timeout=FFMPEG_TIMEOUT,
+    )
+
+
 def download_worker(task_id, url):
     audio_path = None
     try:
+        logger.info("[%s] start url=%s", task_id, url)
         tasks[task_id]["status"] = "downloading"
 
         yt = YouTube(url, on_progress_callback=on_progress)
         title = yt.title
         tasks[task_id]["title"] = title
+        logger.info("[%s] title=%s", task_id, title)
 
         stream = yt.streams.get_audio_only()
+        if stream is None:
+            raise RuntimeError("오디오 스트림을 찾을 수 없습니다.")
         stream._task_id = task_id
 
         audio_filename = f"{task_id}_audio"
         audio_path = stream.download(output_path=DOWNLOAD_DIR, filename=audio_filename)
+        logger.info("[%s] downloaded -> %s", task_id, audio_path)
 
         # ffmpeg로 MP3 변환 (원본 음질 유지)
         tasks[task_id]["status"] = "converting"
@@ -60,33 +94,37 @@ def download_worker(task_id, url):
 
         mp3_path = os.path.join(DOWNLOAD_DIR, f"{task_id}.mp3")
         author = yt.author or ""
-        result = subprocess.run(
-            [
-                "ffmpeg", "-i", audio_path, "-vn", "-q:a", "0",
-                "-metadata", f"title={title}",
-                "-metadata", f"artist={author}",
-                "-y", mp3_path,
-            ],
-            capture_output=True,
-            text=True,
-        )
 
-        # 원본 오디오 파일 삭제
-        if os.path.exists(audio_path):
-            os.remove(audio_path)
+        try:
+            result = _run_ffmpeg(audio_path, mp3_path, title, author)
+        except subprocess.TimeoutExpired:
+            tasks[task_id]["status"] = "error"
+            tasks[task_id]["error"] = f"MP3 변환 시간 초과({FFMPEG_TIMEOUT}s)"
+            logger.error("[%s] ffmpeg timeout", task_id)
+            return
+        finally:
+            if audio_path and os.path.exists(audio_path):
+                os.remove(audio_path)
 
         if result.returncode == 0 and os.path.exists(mp3_path):
             tasks[task_id]["status"] = "done"
             tasks[task_id]["file"] = mp3_path
+            logger.info("[%s] done", task_id)
         else:
             tasks[task_id]["status"] = "error"
-            tasks[task_id]["error"] = "MP3 변환 실패"
+            tasks[task_id]["error"] = f"MP3 변환 실패 (code={result.returncode})"
+            logger.error("[%s] ffmpeg failed code=%s stderr=%s",
+                         task_id, result.returncode, (result.stderr or "")[-2000:])
 
     except Exception as e:
         tasks[task_id]["status"] = "error"
         tasks[task_id]["error"] = str(e)
+        logger.error("[%s] worker error: %s\n%s", task_id, e, traceback.format_exc())
         if audio_path and os.path.exists(audio_path):
-            os.remove(audio_path)
+            try:
+                os.remove(audio_path)
+            except OSError:
+                pass
 
 
 @app.route("/")
