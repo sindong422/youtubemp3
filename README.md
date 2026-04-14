@@ -1,11 +1,11 @@
 # YouTube MP3 Downloader
 
-유튜브 링크를 입력하면 **320kbps 고음질 MP3**로 변환하여 다운로드할 수 있는 개인용 웹 서비스입니다.
+유튜브 링크를 입력하면 **원본 음질을 유지한 MP3**로 변환하여 다운로드할 수 있는 개인용 웹 서비스입니다.
 
 ## 설치
 
 ```bash
-git clone https://github.com/dyshin/youtubemp3.git
+git clone https://github.com/sindong422/youtubemp3.git
 cd youtubemp3
 chmod +x install.sh
 ./install.sh
