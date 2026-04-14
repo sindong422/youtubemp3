@@ -196,6 +196,13 @@
 
         let history = [];
 
+        function showError(msg) {
+            const span = document.createElement('span');
+            span.className = 'error';
+            span.textContent = msg;
+            statusText.replaceChildren(span);
+        }
+
         urlInput.addEventListener('keydown', e => {
             if (e.key === 'Enter') startDownload();
         });
@@ -222,14 +229,14 @@
                 const data = await res.json();
 
                 if (data.error) {
-                    statusText.innerHTML = `<span class="error">${data.error}</span>`;
+                    showError(data.error);
                     resetBtn();
                     return;
                 }
 
                 pollStatus(data.task_id);
             } catch (err) {
-                statusText.innerHTML = `<span class="error">서버 연결 실패</span>`;
+                showError('서버 연결 실패');
                 resetBtn();
             }
         }
@@ -254,18 +261,23 @@
                         clearInterval(interval);
                         progressFill.style.width = '100%';
                         statusText.textContent = '완료!';
-                        downloadLink.innerHTML = `<a class="download-btn" href="/api/file/${taskId}" download>MP3 다운로드</a>`;
+                        const a = document.createElement('a');
+                        a.className = 'download-btn';
+                        a.href = `/api/file/${encodeURIComponent(taskId)}`;
+                        a.download = '';
+                        a.textContent = 'MP3 다운로드';
+                        downloadLink.replaceChildren(a);
                         addHistory(data.title, taskId);
                         resetBtn();
                     } else if (data.status === 'error') {
                         clearInterval(interval);
-                        statusText.innerHTML = `<span class="error">${data.error || '오류 발생'}</span>`;
+                        showError(data.error || '오류 발생');
                         progressFill.style.width = '0%';
                         resetBtn();
                     }
                 } catch {
                     clearInterval(interval);
-                    statusText.innerHTML = `<span class="error">상태 확인 실패</span>`;
+                    showError('상태 확인 실패');
                     resetBtn();
                 }
             }, 1000);
@@ -288,12 +300,18 @@
                 return;
             }
             historySection.style.display = 'block';
-            historyList.innerHTML = history.map(h =>
-                `<div class="history-item">
-                    <span>${h.title.length > 40 ? h.title.slice(0, 40) + '...' : h.title}</span>
-                    <a href="/api/file/${h.taskId}" download>다운로드</a>
-                </div>`
-            ).join('');
+            historyList.replaceChildren(...history.map(h => {
+                const item = document.createElement('div');
+                item.className = 'history-item';
+                const span = document.createElement('span');
+                span.textContent = h.title.length > 40 ? h.title.slice(0, 40) + '...' : h.title;
+                const a = document.createElement('a');
+                a.href = `/api/file/${encodeURIComponent(h.taskId)}`;
+                a.download = '';
+                a.textContent = '다운로드';
+                item.append(span, a);
+                return item;
+            }));
         }
     </script>
 </body>

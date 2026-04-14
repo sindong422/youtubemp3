@@ -32,11 +32,14 @@ tasks = {}
 
 
 def cleanup_old_files(max_age_seconds=3600):
-    """1시간 이상 된 파일 삭제"""
+    """1시간 이상 된 파일 및 task 레코드 삭제"""
     now = time.time()
     for f in glob.glob(os.path.join(DOWNLOAD_DIR, "*")):
         if now - os.path.getmtime(f) > max_age_seconds:
             os.remove(f)
+    for tid in [t for t, v in tasks.items()
+                if now - v.get("created_at", now) > max_age_seconds]:
+        tasks.pop(tid, None)
 
 
 def is_valid_youtube_url(url):
@@ -144,8 +147,11 @@ def start_download():
     if not is_valid_youtube_url(url):
         return jsonify({"error": "유효한 유튜브 URL이 아닙니다."}), 400
 
-    task_id = str(uuid.uuid4())[:8]
-    tasks[task_id] = {"status": "queued", "progress": 0, "title": "", "file": None, "error": None}
+    task_id = uuid.uuid4().hex
+    tasks[task_id] = {
+        "status": "queued", "progress": 0, "title": "",
+        "file": None, "error": None, "created_at": time.time(),
+    }
 
     thread = threading.Thread(target=download_worker, args=(task_id, url), daemon=True)
     thread.start()

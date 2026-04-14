@@ -1,2 +1,2 @@
-flask
-pytubefix
+flask>=3.0,<4.0
+pytubefix>=8.0,<10.0

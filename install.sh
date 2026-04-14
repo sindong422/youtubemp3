@@ -43,7 +43,7 @@ if ! grep -q "alias ymp3=" "$SHELL_RC" 2>/dev/null; then
     echo "" >> "$SHELL_RC"
     echo "# YouTube MP3" >> "$SHELL_RC"
     echo "alias ymp3='cd $SCRIPT_DIR && python3 app.py >> $SCRIPT_DIR/server.log 2>&1 & disown'" >> "$SHELL_RC"
-    echo "alias ymp3c='pkill -f \"app.py\"'" >> "$SHELL_RC"
+    echo "alias ymp3c='pkill -f \"python.*$SCRIPT_DIR/app.py\"'" >> "$SHELL_RC"
     echo "alias 등록 완료 (ymp3 / ymp3c)"
 else
     echo "alias 이미 등록됨 ✓"
