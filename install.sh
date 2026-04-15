@@ -39,15 +39,22 @@ fi
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-if ! grep -q "alias ymp3=" "$SHELL_RC" 2>/dev/null; then
-    echo "" >> "$SHELL_RC"
-    echo "# YouTube MP3" >> "$SHELL_RC"
-    echo "alias ymp3='cd $SCRIPT_DIR && python3 app.py >> $SCRIPT_DIR/server.log 2>&1 & disown'" >> "$SHELL_RC"
-    echo "alias ymp3c='pkill -f \"python.*$SCRIPT_DIR/app.py\"'" >> "$SHELL_RC"
-    echo "alias 등록 완료 (ymp3 / ymp3c)"
+touch "$SHELL_RC"
+if grep -qE '^(# YouTube MP3|alias ymp3c?=)' "$SHELL_RC"; then
+    cp "$SHELL_RC" "$SHELL_RC.ymp3.bak"
+    grep -vE '^(# YouTube MP3|alias ymp3c?=)' "$SHELL_RC.ymp3.bak" > "$SHELL_RC"
+    echo "기존 alias 감지 → 갱신 (백업: $SHELL_RC.ymp3.bak)"
 else
-    echo "alias 이미 등록됨 ✓"
+    echo "alias 신규 등록"
 fi
+
+{
+    echo ""
+    echo "# YouTube MP3"
+    echo "alias ymp3='cd $SCRIPT_DIR && python3 app.py >> $SCRIPT_DIR/server.log 2>&1 & disown'"
+    echo "alias ymp3c='pkill -f \"python.*$SCRIPT_DIR/app.py\"'"
+} >> "$SHELL_RC"
+echo "alias 등록 완료 (ymp3 / ymp3c)"
 
 echo ""
 echo "=== 설치 완료! ==="
